@@ -10,10 +10,12 @@ RUN apt-get update && apt-get install -y \
 
 COPY requirements.txt .
 
-# Upgrade pip and install packages with retry mechanism
+# Upgrade pip and install packages with multiple attempts
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir retry && \
-    retry -t 5 pip install --no-cache-dir -r requirements.txt
+    for i in 1 2 3 4 5; do \
+        pip install --no-cache-dir -r requirements.txt && break || \
+        sleep 5; \
+    done
 
 COPY . .
 

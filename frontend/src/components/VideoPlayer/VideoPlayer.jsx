@@ -175,7 +175,7 @@ const VideoPlayer = () => {
       <div className="bg-black rounded-lg overflow-hidden mb-6">
         <video
           ref={videoRef}
-          src={video.video_url}
+          src={`${import.meta.env.VITE_API_URL}${video.video_url}`}
           onTimeUpdate={handleTimeUpdate}
           onSeeked={handleSeeked}
           controls={!isBlocked}
