@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
-import { videoService, questionService, progressService } from '../services/auth'
-import QuestionModal from '../components/VideoPlayer/QuestionModal'
-import ProgressBar from '../components/VideoPlayer/ProgressBar'
+import { videoService, questionService, progressService } from '../../services/auth.jsx'
+import QuestionModal from './QuestionModal.jsx'
+import ProgressBar from './ProgressBar.jsx'
 import toast from 'react-hot-toast'
 
 const VideoPlayer = () => {
