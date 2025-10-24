@@ -51,6 +51,21 @@ export const videoService = {
     const response = await api.get(`/videos/${videoId}/questions`)
     return response.data
   },
+
+  // Add to videoService in auth.jsx
+async deleteVideo(id) {
+  const response = await api.delete(`/videos/${id}`)
+  return response.data
+},
+
+async updateVideo(id, formData) {
+  const response = await api.put(`/videos/${id}`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+  return response.data
+},
 }
 
 export const questionService = {

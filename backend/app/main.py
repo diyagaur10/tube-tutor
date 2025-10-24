@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Depends
 from fastapi.staticfiles import StaticFiles
+import os
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import engine, Base
@@ -10,7 +11,7 @@ Base.metadata.create_all(bind=engine)
 
 
 app = FastAPI(title="TubeTutor API", version="1.0.0")
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/uploads", StaticFiles(directory="/app/uploads"), name="uploads")
 
 # ✅ Simplified and correct CORS middleware
 allowed_origins = [

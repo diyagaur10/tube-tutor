@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.database import get_db
-from app.auth import get_current_user, get_current_admin_user
-from app.models import User, Video, Question, UserProgress
-from app.schemas import VideoCreate, VideoResponse, VideoUpload, QuestionResponse
+from app.auth import get_current_admin_user
+from app.models import User, Video, Question
+from app.schemas import VideoResponse, QuestionResponse
 from app.services.openai_service import OpenAIService
 import os
 import uuid
@@ -24,6 +24,7 @@ async def get_video(video_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Video not found")
     return video
 
+
 @router.post("/upload", response_model=dict)
 async def upload_video(
     title: str = Form(...),
@@ -36,18 +37,19 @@ async def upload_video(
     # Parse question timestamps
     try:
         timestamps = json.loads(question_timestamps)
-    except:
+    except Exception:
         timestamps = []
-    
+
     # Save video file
     video_filename = f"{uuid.uuid4()}_{video_file.filename}"
-    video_path = f"uploads/videos/{video_filename}"
-    os.makedirs(os.path.dirname(video_path), exist_ok=True)
-    
+    uploads_dir = os.path.join(os.getcwd(), "uploads", "videos")
+    os.makedirs(uploads_dir, exist_ok=True)
+    video_path = os.path.join(uploads_dir, video_filename)
+
     with open(video_path, "wb") as buffer:
         content = await video_file.read()
         buffer.write(content)
-    
+
     # Create video record
     video = Video(
         title=title,
@@ -59,32 +61,75 @@ async def upload_video(
     db.add(video)
     db.commit()
     db.refresh(video)
-    
-    # Generate questions for each timestamp
-    if video.transcript and timestamps:
+
+    # Create questions for each timestamp. If transcript is available use OpenAI, otherwise create fallback questions.
+    if timestamps:
         for timestamp in timestamps:
-            # Get transcript segment up to timestamp
-            transcript_segment = video.transcript[:int(timestamp * 10)]  # Rough estimate
-            
-            # Generate question
-            question_data = OpenAIService.generate_question(
-                transcript_segment, timestamp, "mcq"
-            )
-            
+            if video.transcript:
+                transcript_segment = video.transcript[:int(timestamp * 10)]  # Rough estimate
+                try:
+                    question_data = OpenAIService.generate_question(transcript_segment, timestamp, "mcq")
+                    question_text = question_data.get("question_text")
+                    options = question_data.get("options")
+                    correct_answer = question_data.get("correct_answer")
+                    explanation = question_data.get("explanation")
+                except Exception:
+                    question_text = f"At {int(timestamp)}s: What is the main idea discussed around this time?"
+                    options = ["Main idea A", "Main idea B", "Main idea C", "Main idea D"]
+                    correct_answer = "Main idea A"
+                    explanation = "Fallback question generated because OpenAI failed."
+            else:
+                # Fallback simple question when no transcript available
+                question_text = f"At {int(timestamp)}s: What is the main idea discussed around this time?"
+                options = ["Main idea A", "Main idea B", "Main idea C", "Main idea D"]
+                correct_answer = "Main idea A"
+                explanation = "Fallback question generated because no transcript was available."
+
             question = Question(
                 video_id=video.id,
                 timestamp=timestamp,
                 question_type="mcq",
-                question_text=question_data["question_text"],
-                options=question_data.get("options"),
-                correct_answer=question_data["correct_answer"],
-                explanation=question_data["explanation"]
+                question_text=question_text,
+                options=options,
+                correct_answer=correct_answer,
+                explanation=explanation,
             )
             db.add(question)
-    
-    db.commit()
-    
+        db.commit()
+
+    # Generate a final quiz question at the end of the video
+    try:
+        final_timestamp = video.duration or 0
+        if video.transcript:
+            transcript_segment = video.transcript[-1000:] if video.transcript else ""
+            final_q = OpenAIService.generate_question(transcript_segment, final_timestamp, "mcq")
+            fq_text = final_q.get("question_text")
+            fq_options = final_q.get("options")
+            fq_answer = final_q.get("correct_answer")
+            fq_explanation = final_q.get("explanation")
+        else:
+            fq_text = "Final quiz: What is the main takeaway from this video?"
+            fq_options = ["Takeaway A", "Takeaway B", "Takeaway C", "Takeaway D"]
+            fq_answer = "Takeaway A"
+            fq_explanation = "Fallback final quiz question."
+
+        final_question = Question(
+            video_id=video.id,
+            timestamp=final_timestamp,
+            question_type="mcq",
+            question_text=fq_text,
+            options=fq_options,
+            correct_answer=fq_answer,
+            explanation=fq_explanation,
+            is_final_quiz=True,
+        )
+        db.add(final_question)
+        db.commit()
+    except Exception:
+        db.rollback()
+
     return {"video_id": video.id, "status": "success"}
+
 
 @router.get("/{video_id}/questions", response_model=List[QuestionResponse])
 async def get_video_questions(video_id: int, db: Session = Depends(get_db)):
