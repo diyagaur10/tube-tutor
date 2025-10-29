@@ -131,6 +131,33 @@ async def upload_video(
     return {"video_id": video.id, "status": "success"}
 
 
+@router.delete("/{video_id}")
+async def delete_video(
+    video_id: int,
+    current_user: User = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+):
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    # Delete the physical video file
+    try:
+        video_path = os.path.join(os.getcwd(), video.video_url.lstrip('/'))
+        if os.path.exists(video_path):
+            os.remove(video_path)
+    except Exception as e:
+        print(f"Error deleting video file: {e}")
+
+    # Delete associated questions first (due to foreign key constraints)
+    db.query(Question).filter(Question.video_id == video_id).delete()
+    
+    # Delete the video record
+    db.delete(video)
+    db.commit()
+
+    return {"status": "success", "message": "Video deleted successfully"}
+
 @router.get("/{video_id}/questions", response_model=List[QuestionResponse])
 async def get_video_questions(video_id: int, db: Session = Depends(get_db)):
     questions = db.query(Question).filter(Question.video_id == video_id).all()

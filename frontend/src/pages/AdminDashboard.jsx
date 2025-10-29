@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { videoService } from '../services/auth'
-import { Upload, Plus, X, Edit, Trash2 } from 'lucide-react'
+import { Upload, Plus, X, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const AdminDashboard = () => {
@@ -14,8 +14,8 @@ const AdminDashboard = () => {
   })
   const [uploading, setUploading] = useState(false)
   const [videos, setVideos] = useState([])
-  const [editingVideo, setEditingVideo] = useState(null)
 
+  // Add useEffect to load videos when component mounts
   useEffect(() => {
     loadVideos()
   }, [])
@@ -69,21 +69,12 @@ const AdminDashboard = () => {
     })
   }
 
-  const handleEditClick = (video) => {
-    setEditingVideo(video)
-    setUploadData({
-      title: video.title,
-      description: video.description || '',
-      questionTimestamps: [],
-    })
-    setShowUploadForm(true)
-  }
-
   const handleDeleteVideo = async (videoId) => {
-    if (window.confirm('Are you sure you want to delete this video?')) {
+    if (window.confirm('Are you sure you want to delete this video? This action cannot be undone.')) {
       try {
         await videoService.deleteVideo(videoId)
         toast.success('Video deleted successfully')
+        // Reload videos list after deletion
         loadVideos()
       } catch (error) {
         toast.error('Failed to delete video')
@@ -95,7 +86,7 @@ const AdminDashboard = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     
-    if (!editingVideo && !uploadData.videoFile) {
+    if (!uploadData.videoFile) {
       toast.error('Please select a video file')
       return
     }
@@ -106,33 +97,21 @@ const AdminDashboard = () => {
       const formData = new FormData()
       formData.append('title', uploadData.title)
       formData.append('description', uploadData.description)
-      
-      if (uploadData.videoFile) {
-        formData.append('video_file', uploadData.videoFile)
-      }
-      
-      if (uploadData.questionTimestamps.length > 0) {
-        formData.append('question_timestamps', JSON.stringify(uploadData.questionTimestamps))
-      }
+      formData.append('question_timestamps', JSON.stringify(uploadData.questionTimestamps))
+      formData.append('video_file', uploadData.videoFile)
 
-      if (editingVideo) {
-        await videoService.updateVideo(editingVideo.id, formData)
-        toast.success('Video updated successfully!')
-      } else {
-        await videoService.uploadVideo(formData)
-        toast.success('Video uploaded successfully!')
-      }
-
+      await videoService.uploadVideo(formData)
+      toast.success('Video uploaded successfully!')
       setShowUploadForm(false)
-      setEditingVideo(null)
       setUploadData({
         title: '',
         description: '',
         questionTimestamps: [],
       })
+      // Reload videos list after upload
       loadVideos()
     } catch (error) {
-      toast.error(editingVideo ? 'Failed to update video' : 'Failed to upload video')
+      toast.error('Failed to upload video')
       console.error(error)
     } finally {
       setUploading(false)
@@ -148,18 +127,14 @@ const AdminDashboard = () => {
 
       <div className="bg-white rounded-lg shadow-md p-6">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">
-            {editingVideo ? 'Edit Video' : 'Video Management'}
-          </h2>
-          {!editingVideo && (
-            <button
-              onClick={() => setShowUploadForm(!showUploadForm)}
-              className="btn-primary flex items-center space-x-2"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Upload Video</span>
-            </button>
-          )}
+          <h2 className="text-xl font-semibold text-gray-900">Video Management</h2>
+          <button
+            onClick={() => setShowUploadForm(!showUploadForm)}
+            className="btn-primary flex items-center space-x-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Upload Video</span>
+          </button>
         </div>
 
         {showUploadForm && (
@@ -191,20 +166,18 @@ const AdminDashboard = () => {
               />
             </div>
 
-            {!editingVideo && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Video File
-                </label>
-                <input
-                  type="file"
-                  accept="video/*"
-                  required={!editingVideo}
-                  onChange={handleFileChange}
-                  className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
-                />
-              </div>
-            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Video File
+              </label>
+              <input
+                type="file"
+                accept="video/*"
+                required
+                onChange={handleFileChange}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
+              />
+            </div>
 
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -252,21 +225,11 @@ const AdminDashboard = () => {
                 disabled={uploading}
                 className="btn-primary flex-1 disabled:opacity-50"
               >
-                {uploading 
-                  ? (editingVideo ? 'Updating...' : 'Uploading...') 
-                  : (editingVideo ? 'Update Video' : 'Upload Video')}
+                {uploading ? 'Uploading...' : 'Upload Video'}
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setShowUploadForm(false)
-                  setEditingVideo(null)
-                  setUploadData({
-                    title: '',
-                    description: '',
-                    questionTimestamps: [],
-                  })
-                }}
+                onClick={() => setShowUploadForm(false)}
                 className="btn-secondary"
               >
                 Cancel
@@ -283,14 +246,7 @@ const AdminDashboard = () => {
               <div key={video.id} className="bg-white rounded-lg shadow p-4 border">
                 <h4 className="font-semibold text-gray-900 mb-2">{video.title}</h4>
                 <p className="text-gray-600 text-sm mb-4 line-clamp-2">{video.description}</p>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => handleEditClick(video)}
-                    className="btn-secondary text-sm py-1 px-3 flex items-center"
-                  >
-                    <Edit className="w-4 h-4 mr-1" />
-                    Edit
-                  </button>
+                <div className="flex justify-end">
                   <button
                     onClick={() => handleDeleteVideo(video.id)}
                     className="btn-danger text-sm py-1 px-3 flex items-center"
