@@ -4,7 +4,7 @@ from app.database import get_db
 from app.auth import get_current_user
 from app.models import User, Question, UserProgress
 from app.schemas import AnswerSubmit, AnswerResponse
-from app.services.openai_service import OpenAIService
+from app.services.gemini_service import GeminiService
 
 router = APIRouter()
 
@@ -45,7 +45,7 @@ async def submit_answer(
         )
     
     # Grade the answer
-    grading_result = OpenAIService.grade_answer(
+    grading_result = GeminiService.grade_answer(
         question.question_text,
         answer_data.answer,
         question.correct_answer
@@ -84,7 +84,7 @@ async def submit_answer(
         
         if retries_left == 0:
             # Generate summary for failed question
-            summary = OpenAIService.generate_summary(
+            summary = GeminiService.generate_summary(
                 question.video.transcript or "",
                 question.question_text
             )

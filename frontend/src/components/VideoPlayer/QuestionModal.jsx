@@ -78,7 +78,8 @@ const QuestionModal = ({ isOpen, question, onSubmit, onClose }) => {
       <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold text-gray-900">
-            Question at {Math.floor(question.timestamp / 60)}:{(question.timestamp % 60).toFixed(0).padStart(2, '0')}
+            Question: {question.question_text}
+            {/* Question at {Math.floor(question.timestamp / 60)}:{(question.timestamp % 60).toFixed(0).padStart(2, '0')} */}
           </h3>
           <button
             onClick={onClose}

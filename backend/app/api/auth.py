@@ -10,7 +10,7 @@ from app.schemas import (
     VideoUpload, QuestionResponse, AnswerSubmit, AnswerResponse,
     ProgressResponse, ProgressUpdate
 )
-from app.services.openai_service import OpenAIService
+# from app.services.openai_service import OpenAIService
 from datetime import timedelta
 import os
 import uuid

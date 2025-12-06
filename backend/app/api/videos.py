@@ -5,10 +5,53 @@ from app.database import get_db
 from app.auth import get_current_admin_user
 from app.models import User, Video, Question
 from app.schemas import VideoResponse, QuestionResponse
-from app.services.openai_service import OpenAIService
+from app.services.gemini_service import GeminiService
 import os
+import whisper
 import uuid
 import json
+import subprocess
+
+WHISPER_MODEL = whisper.load_model("base")
+
+def generate_local_transcript(video_path: str) -> str | None:
+    """Uses the local Whisper model to transcribe the video file."""
+    if not os.path.exists(video_path):
+        print(f"Error: Video file not found at {video_path}")
+        return None
+    
+    try:
+        print(f"Starting local transcription using Whisper for {video_path}...")
+        # Whisper automatically handles many video formats due to FFmpeg being available
+        result = WHISPER_MODEL.transcribe(video_path)
+        
+        # Whisper returns a dictionary containing the transcribed text
+        transcript_text = result["text"].strip()
+        print("Local transcription completed successfully.")
+        return transcript_text
+        
+    except Exception as e:
+        print(f"Error during Whisper transcription: {e}")
+        return None
+
+def get_video_duration(video_path: str) -> float:
+    """Uses ffprobe (installed in Dockerfile) to extract duration reliably."""
+    try:
+        # Command to run ffprobe and output duration in seconds
+        cmd = [
+            'ffprobe',
+            '-v', 'error',
+            '-show_entries', 'format=duration',
+            '-of', 'default=noprint_wrappers=1:nokey=1',
+            video_path
+        ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        duration = float(result.stdout.strip())
+        return duration
+    except Exception as e:
+        print(f"Error calculating video duration: {e}")
+        return 0.0
 
 router = APIRouter()
 
@@ -37,6 +80,10 @@ async def upload_video(
     # Parse question timestamps
     try:
         timestamps = json.loads(question_timestamps)
+        if isinstance(timestamps, (int, float)):
+            timestamps = [timestamps]
+        if not isinstance(timestamps, list):
+            timestamps = []
     except Exception:
         timestamps = []
 
@@ -62,13 +109,39 @@ async def upload_video(
     db.commit()
     db.refresh(video)
 
+    print(f"Starting transcript generation for file at: {video_path}")
+    # Call the local Whisper function you just defined
+    transcript = generate_local_transcript(video_path)
+    
+    if transcript:
+        # Store the generated transcript
+        video.transcript = transcript
+
+        video.duration = get_video_duration(video_path) 
+        print(f"Video duration calculated: {video.duration} seconds")
+        
+        # Commit the changes (transcript update) to the database
+        db.add(video)
+        db.commit()
+        print("Transcript successfully saved to database.")
+    else:
+        # If transcription fails, the video.transcript remains None, and the 
+        # fallback logic in the next section will handle question generation.
+        print("Warning: Transcript generation failed or returned empty. Using fallback questions.")
+        
     # Create questions for each timestamp. If transcript is available use OpenAI, otherwise create fallback questions.
     if timestamps:
         for timestamp in timestamps:
             if video.transcript:
                 transcript_segment = video.transcript[:int(timestamp * 10)]  # Rough estimate
+
+                # question_data = GeminiService.generate_question(transcript_segment, timestamp, "mcq")
+                # question_text = question_data.get("question_text")
+                # options = question_data.get("options")
+                # correct_answer = question_data.get("correct_answer")
+                # explanation = question_data.get("explanation")
                 try:
-                    question_data = OpenAIService.generate_question(transcript_segment, timestamp, "mcq")
+                    question_data = GeminiService.generate_question(transcript_segment, timestamp, "mcq")
                     question_text = question_data.get("question_text")
                     options = question_data.get("options")
                     correct_answer = question_data.get("correct_answer")
@@ -77,7 +150,7 @@ async def upload_video(
                     question_text = f"At {int(timestamp)}s: What is the main idea discussed around this time?"
                     options = ["Main idea A", "Main idea B", "Main idea C", "Main idea D"]
                     correct_answer = "Main idea A"
-                    explanation = "Fallback question generated because OpenAI failed."
+                    explanation = "Fallback question generated because Gemini failed."
             else:
                 # Fallback simple question when no transcript available
                 question_text = f"At {int(timestamp)}s: What is the main idea discussed around this time?"
@@ -102,7 +175,7 @@ async def upload_video(
         final_timestamp = video.duration or 0
         if video.transcript:
             transcript_segment = video.transcript[-1000:] if video.transcript else ""
-            final_q = OpenAIService.generate_question(transcript_segment, final_timestamp, "mcq")
+            final_q = GeminiService.generate_question(transcript_segment, final_timestamp, "mcq")
             fq_text = final_q.get("question_text")
             fq_options = final_q.get("options")
             fq_answer = final_q.get("correct_answer")

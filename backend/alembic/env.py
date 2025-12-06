@@ -2,6 +2,11 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 from app.database import Base
 from app.models import *  # Import all models
+import os 
+from sqlalchemy import create_engine 
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # this is the Alembic Config object
 config = context.config
@@ -27,13 +32,20 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode."""
-    configuration = config.get_section(config.config_ini_section)
-    configuration["sqlalchemy.url"] = "postgresql://postgres:password@localhost:5432/tubetutor"
+    """
+    Run migrations in 'online' mode using the DATABASE_URL environment variable.
+    """
     
-    connectable = engine_from_config(
-        configuration,
-        prefix="sqlalchemy.",
+    # Use os.environ.get to reliably pull the URL from Docker's environment
+    db_url = os.environ.get("DATABASE_URL")
+
+    if not db_url:
+        # Fallback to the URL defined in alembic.ini if not running in a controlled environment
+        configuration = config.get_section(config.config_ini_section)
+        db_url = configuration.get("sqlalchemy.url")
+
+    connectable = create_engine(
+        db_url,
         poolclass=pool.NullPool,
     )
 

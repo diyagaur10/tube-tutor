@@ -40,7 +40,9 @@ const RegisterForm = () => {
       toast.success('Registration successful!')
       navigate('/')
     } catch (error) {
-      toast.error(error.response?.data?.detail || 'Registration failed')
+      const detail = error.response?.data?.detail
+      toast.error(typeof detail === 'object' ? JSON.stringify(detail) : detail || 'Registration failed')
+      // toast.error(error.response?.data?.detail || 'Registration failed')
     } finally {
       setLoading(false)
     }
