@@ -16,7 +16,7 @@ A YouTube-like learning platform where admins upload videos and students watch t
 - **Frontend**: React + Vite + Tailwind CSS
 - **Backend**: FastAPI + Python
 - **Database**: PostgreSQL + SQLAlchemy + Alembic
-- **AI**: OpenAI GPT-3.5-turbo for question generation and grading
+- **AI**: OpenAI Whisper (Local Transcription) & Google Gemini 1.5 Flash (Question Generation).
 - **Authentication**: JWT tokens with bcrypt password hashing
 
 ## Quick Start
@@ -38,7 +38,7 @@ cp frontend/env.example frontend/.env
 2. Update `backend/.env` with your credentials:
 ```env
 DATABASE_URL=postgresql://postgres:password@localhost:5432/tubetutor
-OPENAI_API_KEY=your_openai_api_key_here
+GEMENI_API_KEY=your_gemini_api_key_here
 JWT_SECRET_KEY=your_jwt_secret_key_here
 ```
 
@@ -141,7 +141,7 @@ npm run dev
 1. Connect your GitHub repository
 2. Set environment variables:
    - `DATABASE_URL`: PostgreSQL connection string
-   - `OPENAI_API_KEY`: Your OpenAI API key
+   - `GEMEINI_API_KEY`: Your Gemini API key
    - `JWT_SECRET_KEY`: Random secret key
    - `CORS_ORIGINS`: Your frontend URL
 3. Deploy
